@@ -1,49 +1,49 @@
 # openclaw-vps-2-mac-bridge
 
-English | [中文](README_CN.md)
+[English](README.md) | 中文
 
-Control Apple Notes, Calendar, and Reminders on a remote Mac via OpenClaw node host.
+通过 OpenClaw node host，从 Linux VPS 远程控制 Mac 上的 Apple Notes、Calendar 和 Reminders。
 
-## Why This Skill
+## 为什么需要这个 Skill
 
-OpenClaw's built-in `apple-notes` and `apple-reminders` skills assume the gateway runs on macOS. If your gateway is on a Linux VPS (the common setup), those skills won't work.
+OpenClaw 内置的 `apple-notes` 和 `apple-reminders` skill 假设 gateway 跑在 macOS 上。如果你的 gateway 在 Linux VPS 上（常见部署方式），这些 skill 用不了。
 
-This skill uses **osascript over node host** — your VPS gateway sends AppleScript commands to a Mac running as a remote node. Zero CLI dependencies on the Mac side.
+这个 skill 通过 **osascript + node host** 实现——VPS gateway 把 AppleScript 命令发送到作为远程 node 运行的 Mac 上执行。Mac 端零依赖，不需要装额外 CLI 工具。
 
-## Architecture
+## 架构
 
 ```
 ┌─────────────┐    WebSocket     ┌─────────────┐    osascript    ┌──────────────┐
-│  VPS Gateway │ ──(SSH tunnel)──▶│  Node Host  │ ──────────────▶│  macOS Apps  │
-│  (Linux)     │                  │  (Mac)      │                │  Notes/Cal/  │
-│              │◀─── results ─────│             │◀───────────────│  Reminders   │
+│  VPS Gateway │ ──(SSH 隧道)────▶│  Node Host  │ ──────────────▶│  macOS 应用  │
+│  (Linux)     │                  │  (Mac)      │                │  备忘录/日历/ │
+│              │◀─── 返回结果 ────│             │◀───────────────│  提醒事项     │
 └─────────────┘                  └─────────────┘                └──────────────┘
 ```
 
-## Prerequisites
+## 前置条件
 
-- OpenClaw gateway running on a Linux VPS
-- A Mac (macOS 12+) with Apple Notes, Calendar, and Reminders
-- SSH access from Mac to VPS (key-based auth recommended)
-- Node.js 18+ on the Mac
+- Linux VPS 上运行的 OpenClaw gateway
+- 一台 Mac（macOS 12+），装有备忘录、日历、提醒事项
+- Mac 到 VPS 的 SSH 访问（建议密钥认证）
+- Mac 上安装 Node.js 18+
 
-## Setup
+## 设置步骤
 
-### 1. Install OpenClaw CLI on Mac
+### 1. 在 Mac 上安装 OpenClaw CLI
 
 ```bash
 npm install -g openclaw
 ```
 
-### 2. Create SSH tunnel
+### 2. 建立 SSH 隧道
 
-The gateway typically binds to loopback. Create a tunnel from Mac to VPS:
+Gateway 默认绑定 loopback，需要从 Mac 建隧道到 VPS：
 
 ```bash
 ssh -N -L 18790:127.0.0.1:18789 -i ~/.ssh/your-private-key user@your-vps-ip
 ```
 
-For persistent connections, install `autossh`:
+推荐用 `autossh` 实现断线自动重连：
 
 ```bash
 brew install autossh
@@ -55,46 +55,47 @@ autossh -M 0 -N \
   -i ~/.ssh/your-private-key user@your-vps-ip
 ```
 
-### 3. Start node host
+### 3. 启动 node host
 
 ```bash
 export OPENCLAW_GATEWAY_TOKEN="<your-gateway-token>"
 openclaw node run --host 127.0.0.1 --port 18790 --display-name "MacBook"
 ```
 
-Find your gateway token on the VPS:
+查找 gateway token：
 
 ```bash
+# 在 VPS 上执行
 grep -A2 '"auth"' ~/.openclaw/openclaw.json
-# or
+# 或
 openclaw config get gateway.auth.token
 ```
 
-### Tips for filling in paths
+### 查找本地路径
 
 ```bash
-# Find your Node.js path (on Mac)
+# Node.js 路径
 which node
-# e.g. /Users/you/.nvm/versions/node/v22.12.0/bin/node
+# 例如 /Users/you/.nvm/versions/node/v22.12.0/bin/node
 
-# Find openclaw path
+# openclaw 路径
 which openclaw
 
-# Find autossh path
+# autossh 路径
 which autossh
 # Intel Mac: /usr/local/bin/autossh
 # Apple Silicon: /opt/homebrew/bin/autossh
 ```
 
-### 4. Configure exec approvals
+### 4. 配置 exec approvals
 
-On the Mac, set the exec security mode:
+在 Mac 上设置 exec 安全模式：
 
 ```bash
 openclaw config set tools.exec.security allowlist
 ```
 
-Edit `~/.openclaw/exec-approvals.json` to ensure `defaults.security` is set:
+编辑 `~/.openclaw/exec-approvals.json`，确保 `defaults.security` 已设置：
 
 ```json
 {
@@ -115,27 +116,27 @@ Edit `~/.openclaw/exec-approvals.json` to ensure `defaults.security` is set:
 }
 ```
 
-You can also push approvals from the VPS:
+也可以从 VPS 端推送 approvals：
 
 ```bash
 openclaw approvals set --node MacBook --file approvals.json
 ```
 
-### 5. Verify
+### 5. 验证
 
-From the VPS:
+在 VPS 上执行：
 
 ```bash
 openclaw nodes run --node MacBook -- /usr/bin/osascript -e 'return (current date) as string'
 ```
 
-If you see the current date, you're good.
+看到当前日期时间就说明配通了。
 
-### 6. Run as background service (recommended)
+### 6. 设为后台服务（推荐）
 
-Create two launchd services on the Mac so everything starts automatically on boot.
+在 Mac 上创建两个 launchd 服务，开机自动启动。
 
-**SSH tunnel** — `~/Library/LaunchAgents/com.openclaw.ssh-tunnel.plist`:
+**SSH 隧道** — `~/Library/LaunchAgents/com.openclaw.ssh-tunnel.plist`：
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -175,7 +176,7 @@ Create two launchd services on the Mac so everything starts automatically on boo
 </plist>
 ```
 
-**Node host** — `~/Library/LaunchAgents/com.openclaw.node-host.plist`:
+**Node host** — `~/Library/LaunchAgents/com.openclaw.node-host.plist`：
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -219,9 +220,9 @@ Create two launchd services on the Mac so everything starts automatically on boo
 </plist>
 ```
 
-Replace `YOU`, `vXX.XX.X`, key path, VPS IP, and gateway token with your values.
+把 `YOU`、`vXX.XX.X`、密钥路径、VPS IP 和 gateway token 替换成你的实际值。
 
-Load the services:
+加载服务：
 
 ```bash
 launchctl load ~/Library/LaunchAgents/com.openclaw.ssh-tunnel.plist
@@ -229,27 +230,17 @@ sleep 5
 launchctl load ~/Library/LaunchAgents/com.openclaw.node-host.plist
 ```
 
-Verify:
+验证：
 
 ```bash
 launchctl list | grep openclaw
 ```
 
-### Troubleshooting
+### 首次运行 — macOS 权限
 
-| Symptom | Fix |
-|---|---|
-| `node not connected` | Check SSH tunnel: `cat /tmp/openclaw-ssh-tunnel.log` |
-| `SYSTEM_RUN_DENIED: approval required` | Ensure `defaults.security` is `allowlist` in `exec-approvals.json`, then restart node host |
-| `allowlist miss (shell wrappers)` | Use `--` separator: `openclaw nodes run --node MacBook -- /usr/bin/osascript -e '...'` |
-| macOS permission dialog | Click Allow on the Mac when prompted for Notes/Calendar/Reminders automation |
-| `invalid system.run.prepare response` | Version mismatch — ensure VPS and Mac run the same OpenClaw version |
+osascript 首次访问备忘录、日历、提醒事项时，macOS 会弹出权限确认对话框。需要有人在 Mac 前点击**允许**。之后的调用不再需要确认。
 
-### First run — macOS permissions
-
-The first time osascript accesses Notes, Calendar, or Reminders, macOS will show a permission dialog. Someone must be at the Mac to click **Allow**. After that, subsequent calls work unattended.
-
-To pre-trigger all three:
+预触发三个应用的权限：
 
 ```bash
 openclaw nodes run --node MacBook -- /usr/bin/osascript -e 'tell application "Notes" to get name of note 1'
@@ -257,15 +248,25 @@ openclaw nodes run --node MacBook -- /usr/bin/osascript -e 'tell application "Ca
 openclaw nodes run --node MacBook -- /usr/bin/osascript -e 'tell application "Reminders" to get name of list 1'
 ```
 
-## Install the Skill
+## 常见问题
 
-Copy the `apple-apps` folder to your OpenClaw skills directory:
+| 现象 | 解决方法 |
+|---|---|
+| `node not connected` | 检查 SSH 隧道：`cat /tmp/openclaw-ssh-tunnel.log` |
+| `SYSTEM_RUN_DENIED: approval required` | 确保 `exec-approvals.json` 中 `defaults.security` 为 `allowlist`，然后重启 node host |
+| `allowlist miss (shell wrappers)` | 使用 `--` 分隔符：`openclaw nodes run --node MacBook -- /usr/bin/osascript -e '...'` |
+| macOS 权限弹窗 | 在 Mac 上点击允许 Notes/Calendar/Reminders 的自动化权限 |
+| `invalid system.run.prepare response` | 版本不匹配——确保 VPS 和 Mac 上的 OpenClaw 版本一致 |
+
+## 安装 Skill
+
+将 `apple-apps` 文件夹复制到 OpenClaw skills 目录：
 
 ```bash
 cp -r apple-apps ~/.openclaw/skills/
 ```
 
-Or for workspace-level (shared across agents):
+或放到 workspace 级别（所有 agent 共享）：
 
 ```bash
 cp -r apple-apps ~/.openclaw/workspace/skills/
